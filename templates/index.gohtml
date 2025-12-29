@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Özgür Tanrıverdi (otrv) - Software Engineer & Developer</title>
+    <meta name="description" content="Özgür Tanrıverdi (otrv) is a software engineer and developer based in Istanbul. Writing about software development, engineering, and pragmatic problem solving." />
+    <meta name="keywords" content="Özgür Tanrıverdi, otrv, software engineer, software developer, developer, engineer, Istanbul" />
+    <meta name="author" content="Özgür Tanrıverdi" />
+    <meta property="og:title" content="Özgür Tanrıverdi (otrv) - Software Engineer & Developer" />
+    <meta property="og:description" content="Software engineer and developer based in Istanbul. Writing about software development, engineering, and pragmatic problem solving." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://otrv.github.io" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:creator" content="@otrv45" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://otrv.github.io" />
+    <link rel="alternate" type="application/atom+xml" title="Özgür Tanrıverdi (otrv)" href="https://otrv.github.io/feed.xml" />
+    <link rel="stylesheet" href="/main.css" />
+  </head>
+  <body>
+    <header>
+      <nav>
+        <a href="/">otrv</a>
+      </nav>
+    </header>
+    <main>
+      <section>
+        <h1>Özgür Tanrıverdi</h1>
+        <p>
+          I am a software engineer based in Istanbul who obsesses over pragmatic problem solving. You can find me on
+          <a href="https://x.com/otrv45">twitter</a>,
+          <a href="https://github.com/otanriverdi">github</a>
+          or 
+          <a href="https://linkedin.com/in/otrv">linkedin</a>.
+        </p>
+        <p>You can also subscribe to this blog via <a href="/feed.xml">RSS</a>.</p>
+        <p>All code found on this page are licensed under MIT license.</p>
+      </section>
+      <section>
+        <h2>Posts</h2>
+        <ul>
+          {{range .Posts}}
+          <li>
+            <time datetime="{{.DateISO}}">{{.DateString}}</time>
+            <a href="/{{.Slug}}.html">{{.Title}}</a>
+          </li>
+          {{end}}
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>

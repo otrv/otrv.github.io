@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{.Title}} | Özgür Tanrıverdi (otrv)</title>
+    <meta name="description" content="{{.Description}}" />
+    <meta name="keywords" content="Özgür Tanrıverdi, otrv, software engineer, software developer, developer, engineer" />
+    <meta name="author" content="Özgür Tanrıverdi" />
+    <meta property="og:title" content="{{.Title}} | Özgür Tanrıverdi (otrv)" />
+    <meta property="og:description" content="{{.Description}}" />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="https://otrv.github.io/{{.Slug}}.html" />
+    <meta property="article:author" content="Özgür Tanrıverdi" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:creator" content="@otrv45" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://otrv.github.io/{{.Slug}}.html" />
+    <link rel="alternate" type="application/atom+xml" title="Özgür Tanrıverdi (otrv)" href="https://otrv.github.io/feed.xml" />
+    <link rel="stylesheet" href="/main.css" />
+  </head>
+  <body>
+    <header>
+      <nav>
+        <a href="/">otrv</a>
+      </nav>
+    </header>
+    <main>
+      <article>
+        <h1>{{.Title}}</h1>
+        <time datetime="{{.DateISO}}">{{.DateString}}</time>
+        {{.Content}}
+      </article>
+      <footer>
+        <p><strong>Özgür Tanrıverdi</strong></p>
+        <p>I am a software engineer based in Istanbul who obsesses over pragmatic problem solving.</p>
+        <p>Interested in more posts or want to chat? <a href="https://x.com/otrv45">Find me on Twitter</a>. Subscribe via <a href="/feed.xml">RSS</a>.</p>
+      </footer>
+    </main>
+  </body>
+</html>

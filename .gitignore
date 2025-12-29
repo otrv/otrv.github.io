@@ -1,0 +1,14 @@
+# Binary
+otrv.github.io
+
+# Generated output (built by CI)
+public/
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
