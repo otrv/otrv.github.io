@@ -32,13 +32,14 @@ var (
 
 	postTmpl  = template.Must(template.ParseFiles("templates/post.gohtml"))
 	indexTmpl = template.Must(template.ParseFiles("templates/index.gohtml"))
-	feedTmpl = texttemplate.Must(texttemplate.New("feed.xml").Funcs(texttemplate.FuncMap{
+	feedTmpl    = texttemplate.Must(texttemplate.New("feed.xml").Funcs(texttemplate.FuncMap{
 		"escape": func(s string) string {
 			var buf bytes.Buffer
 			template.HTMLEscape(&buf, []byte(s))
 			return buf.String()
 		},
 	}).ParseFiles("templates/feed.xml"))
+	sitemapTmpl = texttemplate.Must(texttemplate.ParseFiles("templates/sitemap.xml"))
 )
 
 type Post struct {
@@ -88,6 +89,14 @@ func main() {
 	}
 
 	if err := generateFeed(posts); err != nil {
+		panic(err)
+	}
+
+	if err := generateSitemap(posts); err != nil {
+		panic(err)
+	}
+
+	if err := copyFile("templates/robots.txt", "public/robots.txt"); err != nil {
 		panic(err)
 	}
 }
@@ -224,4 +233,22 @@ func generateFeed(posts []Post) error {
 		Updated: time.Now().Format(time.RFC3339),
 		Posts:   posts,
 	})
+}
+
+func generateSitemap(posts []Post) error {
+	f, err := os.Create("public/sitemap.xml")
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	return sitemapTmpl.ExecuteTemplate(f, "sitemap.xml", IndexData{Posts: posts})
+}
+
+func copyFile(src, dst string) error {
+	content, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(dst, content, 0o644)
 }
