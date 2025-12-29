@@ -96,7 +96,7 @@ func main() {
 		panic(err)
 	}
 
-	if err := copyFile("templates/robots.txt", "public/robots.txt"); err != nil {
+	if err := copyStaticFiles("static", "public"); err != nil {
 		panic(err)
 	}
 }
@@ -245,10 +245,25 @@ func generateSitemap(posts []Post) error {
 	return sitemapTmpl.ExecuteTemplate(f, "sitemap.xml", IndexData{Posts: posts})
 }
 
-func copyFile(src, dst string) error {
-	content, err := os.ReadFile(src)
+func copyStaticFiles(srcDir, dstDir string) error {
+	entries, err := os.ReadDir(srcDir)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(dst, content, 0o644)
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		src := filepath.Join(srcDir, entry.Name())
+		dst := filepath.Join(dstDir, entry.Name())
+		content, err := os.ReadFile(src)
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(dst, content, 0o644); err != nil {
+			return err
+		}
+	}
+	return nil
 }

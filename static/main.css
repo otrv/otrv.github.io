@@ -1,0 +1,95 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    interpolate-size: allow-keywords;
+  }
+}
+
+body {
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+img,
+picture,
+video,
+canvas,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+input,
+button,
+textarea,
+select {
+  font: inherit;
+}
+
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  overflow-wrap: break-word;
+}
+
+p {
+  text-wrap: pretty;
+}
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  text-wrap: balance;
+}
+
+#root,
+#__next {
+  isolation: isolate;
+}
+
+body {
+  max-width: 80ch;
+  padding: 2ch;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  color: var(--heading);
+  line-height: 1.25;
+  margin: 1.6rem 0 0.6rem;
+}
+h1 {
+  font-size: clamp(1.8rem, 3vw, 2.4rem);
+}
+h2 {
+  font-size: clamp(1.4rem, 2.2vw, 1.8rem);
+}
+h3 {
+  font-size: clamp(1.2rem, 1.8vw, 1.4rem);
+}
+p {
+  margin: 0 0 1rem;
+}
+small,
+figcaption {
+  opacity: 0.8;
+}
