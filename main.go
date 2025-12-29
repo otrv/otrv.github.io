@@ -2,13 +2,13 @@ package main
 
 import (
 	"bytes"
-	"encoding/xml"
 	"fmt"
 	"html/template"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	texttemplate "text/template"
 	"time"
 
 	"github.com/yuin/goldmark"
@@ -32,6 +32,13 @@ var (
 
 	postTmpl  = template.Must(template.ParseFiles("templates/post.gohtml"))
 	indexTmpl = template.Must(template.ParseFiles("templates/index.gohtml"))
+	feedTmpl = texttemplate.Must(texttemplate.New("feed.xml").Funcs(texttemplate.FuncMap{
+		"escape": func(s string) string {
+			var buf bytes.Buffer
+			template.HTMLEscape(&buf, []byte(s))
+			return buf.String()
+		},
+	}).ParseFiles("templates/feed.xml"))
 )
 
 type Post struct {
@@ -50,10 +57,8 @@ func (p Post) DateISO() string {
 	return p.Date.Format(dateLayout)
 }
 
-func xmlEscape(s string) string {
-	var buf bytes.Buffer
-	xml.EscapeText(&buf, []byte(s))
-	return buf.String()
+func (p Post) DateRFC3339() string {
+	return p.Date.Format(time.RFC3339)
 }
 
 type IndexData struct {
@@ -203,6 +208,11 @@ func generateIndex(posts []Post) error {
 	return indexTmpl.Execute(f, IndexData{Posts: posts})
 }
 
+type FeedData struct {
+	Updated string
+	Posts   []Post
+}
+
 func generateFeed(posts []Post) error {
 	f, err := os.Create("public/feed.xml")
 	if err != nil {
@@ -210,36 +220,8 @@ func generateFeed(posts []Post) error {
 	}
 	defer f.Close()
 
-	feed := `<?xml version="1.0" encoding="utf-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom">
-  <link href="` + siteURL + `/feed.xml" rel="self" type="application/atom+xml"/>
-  <link href="` + siteURL + `" rel="alternate" type="text/html"/>
-  <updated>` + time.Now().Format(time.RFC3339) + `</updated>
-  <id>` + siteURL + `/feed.xml</id>
-  <title>Özgür Tanrıverdi (otrv)</title>
-  <subtitle>Software engineer and developer based in Istanbul</subtitle>
-  <author>
-    <name>Özgür Tanrıverdi</name>
-  </author>
-`
-
-	for _, post := range posts {
-		feed += `  <entry>
-    <title>` + xmlEscape(post.Title) + `</title>
-    <link href="` + siteURL + `/` + post.Slug + `.html" rel="alternate" type="text/html"/>
-    <published>` + post.Date.Format(time.RFC3339) + `</published>
-    <updated>` + post.Date.Format(time.RFC3339) + `</updated>
-    <id>` + siteURL + `/` + post.Slug + `.html</id>
-    <author>
-      <name>Özgür Tanrıverdi</name>
-    </author>
-    <summary type="html"><![CDATA[` + post.Description + `]]></summary>
-  </entry>
-`
-	}
-
-	feed += `</feed>`
-
-	_, err = f.WriteString(feed)
-	return err
+	return feedTmpl.ExecuteTemplate(f, "feed.xml", FeedData{
+		Updated: time.Now().Format(time.RFC3339),
+		Posts:   posts,
+	})
 }

@@ -1,4 +1,4 @@
-module github.com/otanriverdi/otanriverdi
+module github.com/otanriverdi/otrv.github.io
 
 go 1.25.1
 
