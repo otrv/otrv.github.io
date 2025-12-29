@@ -11,7 +11,7 @@ Since **Deno** 1.0 was released, JS developers all around are interested in find
 
 This is a small tutorial to build a bare bones live reloader like **nodemon** and **denon**. Keep in mind, we will not cover many edge cases and we will ignore possible bugs. Our reloader will also not have many of the features existing tools provide so you should probably keep on using **denon** for your Deno apps. But if you are interested in **Deno**, you can always improve upon what we have built here!
 
-*The source code for this project is available on [Github](https://github.com/otanriverdi/denor).*
+*The source code for this project is available on [Github](https://github.com/otrv/denor).*
 
 # Getting Started With Deno
 
