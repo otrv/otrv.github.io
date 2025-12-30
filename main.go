@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"os"
@@ -36,11 +37,15 @@ var (
 
 	postTmpl  = template.Must(template.ParseFiles("templates/post.gohtml"))
 	indexTmpl = template.Must(template.ParseFiles("templates/index.gohtml"))
-	feedTmpl    = texttemplate.Must(texttemplate.New("feed.xml").Funcs(texttemplate.FuncMap{
+	feedTmpl = texttemplate.Must(texttemplate.New("feed.xml").Funcs(texttemplate.FuncMap{
 		"escape": func(s string) string {
 			var buf bytes.Buffer
 			template.HTMLEscape(&buf, []byte(s))
 			return buf.String()
+		},
+		"cdata": func(s any) string {
+			str := fmt.Sprintf("%v", s)
+			return strings.ReplaceAll(str, "]]>", "]]]]><![CDATA[>")
 		},
 	}).ParseFiles("templates/feed.xml"))
 	sitemapTmpl = texttemplate.Must(texttemplate.ParseFiles("templates/sitemap.xml"))
@@ -53,6 +58,30 @@ type Post struct {
 	Cover       string
 	Slug        string
 	Content     template.HTML
+	JSONLD      template.JS
+}
+
+type jsonLD struct {
+	Context          string       `json:"@context"`
+	Type             string       `json:"@type"`
+	Headline         string       `json:"headline"`
+	Description      string       `json:"description,omitempty"`
+	DatePublished    string       `json:"datePublished"`
+	Author           jsonLDPerson `json:"author"`
+	Publisher        jsonLDPerson `json:"publisher"`
+	MainEntityOfPage jsonLDPage   `json:"mainEntityOfPage"`
+	Image            string       `json:"image,omitempty"`
+}
+
+type jsonLDPerson struct {
+	Type string `json:"@type"`
+	Name string `json:"name"`
+	URL  string `json:"url,omitempty"`
+}
+
+type jsonLDPage struct {
+	Type string `json:"@type"`
+	ID   string `json:"@id"`
 }
 
 func (p Post) DateString() string {
@@ -68,7 +97,8 @@ func (p Post) DateRFC3339() string {
 }
 
 type IndexData struct {
-	Posts []Post
+	Posts       []Post
+	LastUpdated string
 }
 
 func main() {
@@ -118,14 +148,15 @@ func parsePosts(dir string) ([]Post, error) {
 			continue
 		}
 
-		content, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		path := filepath.Join(dir, entry.Name())
+		content, err := os.ReadFile(path)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("read post %s: %w", path, err)
 		}
 
 		post, err := parsePost(entry.Name(), content)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("parse post %s: %w", entry.Name(), err)
 		}
 
 		posts = append(posts, post)
@@ -171,6 +202,31 @@ func parsePost(filename string, content []byte) (Post, error) {
 
 	slug := strings.TrimSuffix(filename, ".md")
 
+	ld := jsonLD{
+		Context:       "https://schema.org",
+		Type:          "BlogPosting",
+		Headline:      meta.Title,
+		Description:   meta.Description,
+		DatePublished: date.Format(time.RFC3339),
+		Author: jsonLDPerson{
+			Type: "Person",
+			Name: "Özgür Tanrıverdi",
+			URL:  siteURL,
+		},
+		Publisher: jsonLDPerson{
+			Type: "Person",
+			Name: "Özgür Tanrıverdi",
+		},
+		MainEntityOfPage: jsonLDPage{
+			Type: "WebPage",
+			ID:   siteURL + "/" + slug + ".html",
+		},
+	}
+	if meta.Cover != "" {
+		ld.Image = siteURL + "/" + meta.Cover
+	}
+	jsonLDBytes, _ := json.Marshal(ld)
+
 	return Post{
 		Title:       meta.Title,
 		Date:        date,
@@ -178,19 +234,21 @@ func parsePost(filename string, content []byte) (Post, error) {
 		Cover:       meta.Cover,
 		Slug:        slug,
 		Content:     template.HTML(buf.String()),
+		JSONLD:      template.JS(jsonLDBytes),
 	}, nil
 }
 
 func generatePostPages(posts []Post) error {
 	for _, post := range posts {
-		f, err := os.Create(filepath.Join("public", post.Slug+".html"))
+		path := filepath.Join("public", post.Slug+".html")
+		f, err := os.Create(path)
 		if err != nil {
-			return err
+			return fmt.Errorf("create post page %s: %w", path, err)
 		}
 
 		if err := postTmpl.Execute(f, post); err != nil {
 			f.Close()
-			return err
+			return fmt.Errorf("render post %s: %w", post.Slug, err)
 		}
 		f.Close()
 	}
@@ -201,11 +259,14 @@ func generatePostPages(posts []Post) error {
 func generateIndex(posts []Post) error {
 	f, err := os.Create("public/index.html")
 	if err != nil {
-		return err
+		return fmt.Errorf("create index: %w", err)
 	}
 	defer f.Close()
 
-	return indexTmpl.Execute(f, IndexData{Posts: posts})
+	if err := indexTmpl.Execute(f, IndexData{Posts: posts}); err != nil {
+		return fmt.Errorf("render index: %w", err)
+	}
+	return nil
 }
 
 type FeedData struct {
@@ -216,30 +277,53 @@ type FeedData struct {
 func generateFeed(posts []Post) error {
 	f, err := os.Create("public/feed.xml")
 	if err != nil {
-		return err
+		return fmt.Errorf("create feed: %w", err)
 	}
 	defer f.Close()
 
-	return feedTmpl.ExecuteTemplate(f, "feed.xml", FeedData{
-		Updated: time.Now().Format(time.RFC3339),
+	var updated time.Time
+	if len(posts) > 0 {
+		updated = posts[0].Date
+	} else {
+		updated = time.Now()
+	}
+
+	if err := feedTmpl.ExecuteTemplate(f, "feed.xml", FeedData{
+		Updated: updated.Format(time.RFC3339),
 		Posts:   posts,
-	})
+	}); err != nil {
+		return fmt.Errorf("render feed: %w", err)
+	}
+	return nil
 }
 
 func generateSitemap(posts []Post) error {
 	f, err := os.Create("public/sitemap.xml")
 	if err != nil {
-		return err
+		return fmt.Errorf("create sitemap: %w", err)
 	}
 	defer f.Close()
 
-	return sitemapTmpl.ExecuteTemplate(f, "sitemap.xml", IndexData{Posts: posts})
+	var lastUpdated string
+	if len(posts) > 0 {
+		lastUpdated = posts[0].DateISO()
+	} else {
+		lastUpdated = time.Now().Format(dateLayout)
+	}
+
+	if err := sitemapTmpl.ExecuteTemplate(f, "sitemap.xml", IndexData{
+		Posts:       posts,
+		LastUpdated: lastUpdated,
+	}); err != nil {
+		return fmt.Errorf("render sitemap: %w", err)
+	}
+	return nil
 }
 
 func copyStaticFiles(srcDir, dstDir string) error {
 	entries, err := os.ReadDir(srcDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("read static dir %s: %w", srcDir, err)
 	}
 
 	for _, entry := range entries {
@@ -250,10 +334,10 @@ func copyStaticFiles(srcDir, dstDir string) error {
 		dst := filepath.Join(dstDir, entry.Name())
 		content, err := os.ReadFile(src)
 		if err != nil {
-			return err
+			return fmt.Errorf("read static file %s: %w", src, err)
 		}
 		if err := os.WriteFile(dst, content, 0o644); err != nil {
-			return err
+			return fmt.Errorf("write static file %s: %w", dst, err)
 		}
 	}
 	return nil

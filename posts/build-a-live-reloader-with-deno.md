@@ -1,18 +1,19 @@
 ---
 title: Build a live reloader with Deno
 date: 2020-10-28
-description: A short introduction to Deno by building a live reloader similar to Nodemon and Wathcman. By going through the tutorial you will explore all principles of Deno.
+description: A short introduction to Deno by building a live reloader similar to Nodemon and Watchman. By going through this tutorial you will explore all principles of Deno.
 cover: deno.webp
 ---
-*2024 Update: This article was written in 2020 and so is a bit outdated. But all the principles in the article would still be relevant today.*
 
-*Before starting; if you don't know what Deno is and what it tries to accomplish, you should head over to this blog [post](https://deno.land/v1) if you want to learn more about it.*
+_2024 Update: This article was written in 2020 and so is a bit outdated. But all the principles in the article would still be relevant today._
+
+_Before starting; if you don't know what Deno is and what it tries to accomplish, you should head over to this blog [post](https://deno.land/v1) if you want to learn more about it._
 
 Since **Deno** 1.0 was released, JS developers all around are interested in finding out what it has to offer and how it improves over **NodeJS**. To help, I wanted to build something simple and fun while exploring fundamentals of **Deno** runtime and tooling.
 
 This is a small tutorial to build a bare bones live reloader like **nodemon** and **denon**. Keep in mind, we will not cover many edge cases and we will ignore possible bugs. Our reloader will also not have many of the features existing tools provide so you should probably keep on using **denon** for your Deno apps. But if you are interested in **Deno**, you can always improve upon what we have built here!
 
-*The source code for this project is available on [Github](https://github.com/otrv/denor).*
+_The source code for this project is available on [Github](https://github.com/otrv/denor)._
 
 # Getting Started With Deno
 
@@ -37,10 +38,7 @@ First thing we need is a watcher to watch for file changes on our project direct
 Let's create the `src/watcher.ts` file and start working on our watcher;
 
 ```typescript
-export async function watchChanges(
-  path: string,
-  onChange: Function,
-) {
+export async function watchChanges(path: string, onChange: Function) {
   const watcher = Deno.watchFs(path);
 
   for await (const event of watcher) {
@@ -69,7 +67,7 @@ function main() {
 
   await watcher.watchChanges(".", () => {
     console.log("File change detected.");
-  })
+  });
 }
 main();
 ```
@@ -86,7 +84,7 @@ So we have to update our watcher to wait for a small interval before every execu
 export async function watchChanges(
   path: string,
   onChange: Function,
-  config = { interval: 500 }
+  config = { interval: 500 },
 ) {
   const watcher = Deno.watchFs(path);
   let reloading = false;
@@ -122,10 +120,7 @@ function denoRun(cmd: string[]) {
 We accept an array of strings and pass it to the [Deno.run()](https://doc.deno.land/https/github.com/denoland/deno/releases/latest/download/lib.deno.d.ts#Deno.run) function by adding the `deno` command before it. We will need the process later so we should return the process. We have to watch our process for any errors so that we can inform the user to make changes to fix them. Our error watcher function is;
 
 ```typescript
-async function watchProcessError(
-  process: Deno.Process,
-  onError: Function
-) {
+async function watchProcessError(process: Deno.Process, onError: Function) {
   if ((await process.status()).success === false) {
     onError();
   }
@@ -137,10 +132,7 @@ This function will await for the process status and run the `onError()` callback
 Finally, we can combine these two functions into a single exported function which will be used inside the callback of the `watcher`.
 
 ```typescript
-export function runAndWatchErrors(
-  cmd: string[],
-  onError: Function
-) {
+export function runAndWatchErrors(cmd: string[], onError: Function) {
   const process = denoRun(Deno.args);
 
   watchProcessError(process, onError);
@@ -168,10 +160,7 @@ function denoRun(cmd: string[], currentProcess?: Deno.Process) {
 But remember, we are also watching for the errors on the process and we are doing so synchronously. Because the process that the `watchProcessError` function is watching no longer exists, it will throw an error which will cause our live reloader to exit. To prevent this, we have to catch that error and simply ignore it;
 
 ```typescript
-async function watchProcessError(
-  process: Deno.Process,
-  onError: Function
-) {
+async function watchProcessError(process: Deno.Process, onError: Function) {
   try {
     if ((await process.status()).success === false) {
       onError();
@@ -188,7 +177,7 @@ We also need to modify our exported function to reflect these changes;
 export function runAndWatchErrors(
   cmd: string[],
   onError: Function,
-  ongoingProcess?: Deno.Process
+  ongoingProcess?: Deno.Process,
 ) {
   const process = denoRun(cmd, ongoingProcess);
 
@@ -218,7 +207,7 @@ async function main() {
   let process = runner.runAndWatchErrors(Deno.args, onError);
 
   console.log(
-    "Running the process for the first time. Watching for changes..."
+    "Running the process for the first time. Watching for changes...",
   );
 
   await watcher.watchChanges(".", async () => {
@@ -251,7 +240,7 @@ setTimeout(() => {
 }, 10000);
 ```
 
-We can test our reloader using this command: `deno run --allow-read --allow-run denor.ts run test.ts`. We need the `--allow-run` flag since we need to spawn a subprocess. When our reloader is installed on our system, this command will be replaced with `denor run test.ts` which is more intuitive. Try to make some changes on `test.ts` and see if the process reloads. If you reload the app before it throws the error, wait for sometime to see if  the error is thrown for a single time. If you see multiple errors, there probably is an error in your code and our reloader does not close the process properly. If everything is running smoothly and your app is reloading correctly, good job! We made it! Now it's time to make it more beautiful and explore more features of **Deno** in the process.
+We can test our reloader using this command: `deno run --allow-read --allow-run denor.ts run test.ts`. We need the `--allow-run` flag since we need to spawn a subprocess. When our reloader is installed on our system, this command will be replaced with `denor run test.ts` which is more intuitive. Try to make some changes on `test.ts` and see if the process reloads. If you reload the app before it throws the error, wait for sometime to see if the error is thrown for a single time. If you see multiple errors, there probably is an error in your code and our reloader does not close the process properly. If everything is running smoothly and your app is reloading correctly, good job! We made it! Now it's time to make it more beautiful and explore more features of **Deno** in the process.
 
 # Using the Standard Library and Third-Party Libraries
 
@@ -304,7 +293,7 @@ import * as logger from "./logger.ts";
 export async function watchChanges(
   path: string,
   onChange: Function,
-  config = { interval: 500 }
+  config = { interval: 500 },
 ) {
   const watcher = Deno.watchFs(path);
   let reloading = false;
@@ -339,7 +328,7 @@ async function main() {
   // initial process
   let process = runner.runAndWatchErrors(Deno.args, onError);
   logger.success(
-    "Running the process for the first time. Watching for changes..."
+    "Running the process for the first time. Watching for changes...",
   );
 
   await watcher.watchChanges(".", async () => {
