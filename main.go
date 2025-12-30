@@ -13,6 +13,9 @@ import (
 
 	"github.com/yuin/goldmark"
 	highlighting "github.com/yuin/goldmark-highlighting/v2"
+	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/text"
+	"go.abhg.dev/goldmark/frontmatter"
 )
 
 const (
@@ -27,6 +30,7 @@ var (
 			highlighting.NewHighlighting(
 				highlighting.WithStyle("vim"),
 			),
+			&frontmatter.Extender{},
 		),
 	)
 
@@ -129,62 +133,46 @@ func parsePosts(dir string) ([]Post, error) {
 	return posts, nil
 }
 
+type postMeta struct {
+	Title       string `yaml:"title"`
+	Date        string `yaml:"date"`
+	Description string `yaml:"description"`
+}
+
 func parsePost(filename string, content []byte) (Post, error) {
-	lines := strings.Split(string(content), "\n")
+	ctx := parser.NewContext()
+	doc := md.Parser().Parse(text.NewReader(content), parser.WithContext(ctx))
 
-	var title, description string
-	var date time.Time
-	bodyStart := 0
-
-	if len(lines) > 0 && strings.TrimSpace(lines[0]) == "---" {
-		foundClosing := false
-		for i := 1; i < len(lines); i++ {
-			line := strings.TrimSpace(lines[i])
-			if line == "---" {
-				bodyStart = i + 1
-				foundClosing = true
-				break
-			}
-			if strings.HasPrefix(line, "title:") {
-				title = strings.TrimSpace(strings.TrimPrefix(line, "title:"))
-			}
-			if strings.HasPrefix(line, "date:") {
-				dateStr := strings.TrimSpace(strings.TrimPrefix(line, "date:"))
-				parsed, err := time.Parse(dateLayout, dateStr)
-				if err != nil {
-					return Post{}, fmt.Errorf("invalid date %q in %s: %w", dateStr, filename, err)
-				}
-				date = parsed
-			}
-			if strings.HasPrefix(line, "description:") {
-				description = strings.TrimSpace(strings.TrimPrefix(line, "description:"))
-			}
-		}
-		if !foundClosing {
-			return Post{}, fmt.Errorf("missing closing front matter --- in %s", filename)
-		}
+	d := frontmatter.Get(ctx)
+	if d == nil {
+		return Post{}, fmt.Errorf("missing front matter in %s", filename)
 	}
 
-	body := strings.Join(lines[bodyStart:], "\n")
+	var meta postMeta
+	if err := d.Decode(&meta); err != nil {
+		return Post{}, fmt.Errorf("invalid front matter in %s: %w", filename, err)
+	}
 
-	if title == "" {
+	if meta.Title == "" {
 		return Post{}, fmt.Errorf("missing title in %s", filename)
 	}
-	if date.IsZero() {
-		return Post{}, fmt.Errorf("missing or invalid date in %s", filename)
+
+	date, err := time.Parse(dateLayout, meta.Date)
+	if err != nil {
+		return Post{}, fmt.Errorf("invalid date %q in %s: %w", meta.Date, filename, err)
 	}
 
 	var buf bytes.Buffer
-	if err := md.Convert([]byte(body), &buf); err != nil {
+	if err := md.Renderer().Render(&buf, content, doc); err != nil {
 		return Post{}, err
 	}
 
 	slug := strings.TrimSuffix(filename, ".md")
 
 	return Post{
-		Title:       title,
+		Title:       meta.Title,
 		Date:        date,
-		Description: description,
+		Description: meta.Description,
 		Slug:        slug,
 		Content:     template.HTML(buf.String()),
 	}, nil
