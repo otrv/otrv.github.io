@@ -1,4 +1,4 @@
-# otrv.github.io
+# otrv.dev
 
 My personal website. A static site generator in ~200 lines of Go.
 

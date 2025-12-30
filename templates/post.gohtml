@@ -10,16 +10,16 @@
     <meta property="og:title" content="{{.Title}} | Özgür Tanrıverdi (otrv)" />
     {{if .Description}}<meta property="og:description" content="{{.Description}}" />{{end}}
     <meta property="og:type" content="article" />
-    <meta property="og:url" content="https://otrv.github.io/{{.Slug}}.html" />
+    <meta property="og:url" content="https://otrv.dev/{{.Slug}}.html" />
     <meta property="article:author" content="Özgür Tanrıverdi" />
     <meta property="article:published_time" content="{{.DateRFC3339}}" />
-    {{if .Cover}}<meta property="og:image" content="https://otrv.github.io/{{.Cover}}" />{{end}}
+    {{if .Cover}}<meta property="og:image" content="https://otrv.dev/{{.Cover}}" />{{end}}
     <meta name="twitter:card" content="{{if .Cover}}summary_large_image{{else}}summary{{end}}" />
-    {{if .Cover}}<meta name="twitter:image" content="https://otrv.github.io/{{.Cover}}" />{{end}}
+    {{if .Cover}}<meta name="twitter:image" content="https://otrv.dev/{{.Cover}}" />{{end}}
     <meta name="twitter:creator" content="@otrv45" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <link rel="canonical" href="https://otrv.github.io/{{.Slug}}.html" />
-    <link rel="alternate" type="application/atom+xml" title="Özgür Tanrıverdi (otrv)" href="https://otrv.github.io/feed.xml" />
+    <link rel="canonical" href="https://otrv.dev/{{.Slug}}.html" />
+    <link rel="alternate" type="application/atom+xml" title="Özgür Tanrıverdi (otrv)" href="https://otrv.dev/feed.xml" />
     <link rel="stylesheet" href="/main.css" />
     <script type="application/ld+json">{{.JSONLD}}</script>
   </head>

@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://otrv.github.io/sitemap.xml
+Sitemap: https://otrv.dev/sitemap.xml

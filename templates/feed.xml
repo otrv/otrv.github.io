@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
-  <link href="https://otrv.github.io/feed.xml" rel="self" type="application/atom+xml"/>
-  <link href="https://otrv.github.io" rel="alternate" type="text/html"/>
+  <link href="https://otrv.dev/feed.xml" rel="self" type="application/atom+xml"/>
+  <link href="https://otrv.dev" rel="alternate" type="text/html"/>
   <updated>{{.Updated}}</updated>
-  <id>https://otrv.github.io/feed.xml</id>
+  <id>https://otrv.dev/feed.xml</id>
   <title>Özgür Tanrıverdi (otrv)</title>
   <subtitle>Software engineer and developer based in Istanbul</subtitle>
   <author>
@@ -11,10 +11,10 @@
   </author>
 {{range .Posts}}  <entry>
     <title>{{.Title | escape}}</title>
-    <link href="https://otrv.github.io/{{.Slug}}.html" rel="alternate" type="text/html"/>
+    <link href="https://otrv.dev/{{.Slug}}.html" rel="alternate" type="text/html"/>
     <published>{{.DateRFC3339}}</published>
     <updated>{{.DateRFC3339}}</updated>
-    <id>https://otrv.github.io/{{.Slug}}.html</id>
+    <id>https://otrv.dev/{{.Slug}}.html</id>
     <author>
       <name>Özgür Tanrıverdi</name>
     </author>

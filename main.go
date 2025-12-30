@@ -22,7 +22,7 @@ import (
 const (
 	dateLayout        = "2006-01-02"
 	dateDisplayLayout = "Jan 2, 2006"
-	siteURL           = "https://otrv.github.io"
+	siteURL           = "https://otrv.dev"
 )
 
 var (

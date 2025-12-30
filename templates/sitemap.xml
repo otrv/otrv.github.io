@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://otrv.github.io/</loc>
+    <loc>https://otrv.dev/</loc>
     <lastmod>{{.LastUpdated}}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
 {{range .Posts}}  <url>
-    <loc>https://otrv.github.io/{{.Slug}}.html</loc>
+    <loc>https://otrv.dev/{{.Slug}}.html</loc>
     <lastmod>{{.DateISO}}</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
