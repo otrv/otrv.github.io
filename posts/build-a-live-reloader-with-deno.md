@@ -2,6 +2,7 @@
 title: Build a live reloader with Deno
 date: 2020-10-28
 description: A short introduction to Deno by building a live reloader similar to Nodemon and Wathcman. By going through the tutorial you will explore all principles of Deno.
+cover: deno.webp
 ---
 *2024 Update: This article was written in 2020 and so is a bit outdated. But all the principles in the article would still be relevant today.*
 

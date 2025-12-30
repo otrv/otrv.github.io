@@ -50,6 +50,7 @@ type Post struct {
 	Title       string
 	Date        time.Time
 	Description string
+	Cover       string
 	Slug        string
 	Content     template.HTML
 }
@@ -137,6 +138,7 @@ type postMeta struct {
 	Title       string `yaml:"title"`
 	Date        string `yaml:"date"`
 	Description string `yaml:"description"`
+	Cover       string `yaml:"cover"`
 }
 
 func parsePost(filename string, content []byte) (Post, error) {
@@ -173,6 +175,7 @@ func parsePost(filename string, content []byte) (Post, error) {
 		Title:       meta.Title,
 		Date:        date,
 		Description: meta.Description,
+		Cover:       meta.Cover,
 		Slug:        slug,
 		Content:     template.HTML(buf.String()),
 	}, nil

@@ -12,7 +12,9 @@
     <meta property="og:type" content="article" />
     <meta property="og:url" content="https://otrv.github.io/{{.Slug}}.html" />
     <meta property="article:author" content="Özgür Tanrıverdi" />
-    <meta name="twitter:card" content="summary" />
+    {{if .Cover}}<meta property="og:image" content="https://otrv.github.io/{{.Cover}}" />{{end}}
+    <meta name="twitter:card" content="{{if .Cover}}summary_large_image{{else}}summary{{end}}" />
+    {{if .Cover}}<meta name="twitter:image" content="https://otrv.github.io/{{.Cover}}" />{{end}}
     <meta name="twitter:creator" content="@otrv45" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="canonical" href="https://otrv.github.io/{{.Slug}}.html" />
@@ -29,6 +31,7 @@
       <article>
         <h1>{{.Title}}</h1>
         <time datetime="{{.DateISO}}">{{.DateString}}</time>
+        {{if .Cover}}<img src="/{{.Cover}}" alt="{{.Title}}" class="cover" />{{end}}
         {{.Content}}
       </article>
       <footer>
