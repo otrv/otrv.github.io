@@ -2,6 +2,13 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <script async src="https://www.googletagmanager.com/gtag/js?id={{.GAID}}"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', '{{.GAID}}');
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Özgür Tanrıverdi (otrv) - Software Engineer & Developer</title>
     <meta name="description" content="Özgür Tanrıverdi (otrv) is a software engineer and developer based in Istanbul. Writing about software development, engineering, and pragmatic problem solving." />

@@ -23,6 +23,7 @@ const (
 	dateLayout        = "2006-01-02"
 	dateDisplayLayout = "Jan 2, 2006"
 	siteURL           = "https://otrv.dev"
+	gaID              = "G-DZ4KVNJVCR"
 )
 
 var (
@@ -37,7 +38,7 @@ var (
 
 	postTmpl  = template.Must(template.ParseFiles("templates/post.gohtml"))
 	indexTmpl = template.Must(template.ParseFiles("templates/index.gohtml"))
-	feedTmpl = texttemplate.Must(texttemplate.New("feed.xml").Funcs(texttemplate.FuncMap{
+	feedTmpl  = texttemplate.Must(texttemplate.New("feed.xml").Funcs(texttemplate.FuncMap{
 		"escape": func(s string) string {
 			var buf bytes.Buffer
 			template.HTMLEscape(&buf, []byte(s))
@@ -99,6 +100,12 @@ func (p Post) DateRFC3339() string {
 type IndexData struct {
 	Posts       []Post
 	LastUpdated string
+	GAID        string
+}
+
+type PostData struct {
+	Post
+	GAID string
 }
 
 func main() {
@@ -246,7 +253,7 @@ func generatePostPages(posts []Post) error {
 			return fmt.Errorf("create post page %s: %w", path, err)
 		}
 
-		if err := postTmpl.Execute(f, post); err != nil {
+		if err := postTmpl.Execute(f, PostData{Post: post, GAID: gaID}); err != nil {
 			f.Close()
 			return fmt.Errorf("render post %s: %w", post.Slug, err)
 		}
@@ -263,7 +270,7 @@ func generateIndex(posts []Post) error {
 	}
 	defer f.Close()
 
-	if err := indexTmpl.Execute(f, IndexData{Posts: posts}); err != nil {
+	if err := indexTmpl.Execute(f, IndexData{Posts: posts, GAID: gaID}); err != nil {
 		return fmt.Errorf("render index: %w", err)
 	}
 	return nil
