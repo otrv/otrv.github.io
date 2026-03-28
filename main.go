@@ -21,7 +21,7 @@ import (
 
 const (
 	dateLayout        = "2006-01-02"
-	dateDisplayLayout = "Jan 2, 2006"
+	dateDisplayLayout = "Jan 02, 2006"
 	siteURL           = "https://otrv.dev"
 	gaID              = "G-DZ4KVNJVCR"
 )

@@ -31,8 +31,7 @@ html {
   padding: 0.4rem 0.7rem;
   background: var(--primary);
   color: #ffffff;
-  border-radius: 4px;
-  font-size: 0.9rem;
+    font-size: 0.9rem;
   transform: translateY(-150%);
   transition: transform 0.15s ease-out;
   z-index: 1000;
@@ -169,8 +168,7 @@ section h1 {
 .avatar {
   width: 140px;
   height: 140px;
-  border-radius: 6px;
-  margin-bottom: 1rem;
+    margin-bottom: 1rem;
 }
 
 article time {
@@ -193,8 +191,7 @@ article img.cover {
   max-width: 100%;
   height: auto;
   margin: 0 0 2rem;
-  border-radius: 6px;
-}
+  }
 
 section h2 {
   margin-top: 2.5rem;
@@ -235,8 +232,7 @@ blockquote p:last-child {
 pre {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 1rem;
+    padding: 1rem;
   overflow-x: auto;
   margin: 0 0 1.2rem;
   font-size: 0.9rem;
@@ -252,8 +248,7 @@ code {
 p code {
   background: var(--bg-secondary);
   padding: 0.15rem 0.4rem;
-  border-radius: 3px;
-  color: var(--text-heading);
+    color: var(--text-heading);
 }
 
 footer {
@@ -261,8 +256,7 @@ footer {
   padding: 1.5rem;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-radius: 6px;
-}
+  }
 
 footer p {
   margin-bottom: 0.5rem;
@@ -282,8 +276,7 @@ footer p:last-child {
 .footer-avatar {
   width: 80px;
   height: 80px;
-  border-radius: 6px;
-  flex-shrink: 0;
+    flex-shrink: 0;
 }
 
 .footer-text p:first-child {
