@@ -5,6 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"image"
+	"image/color"
+	"image/draw"
+	"image/png"
 	"os"
 	"path/filepath"
 	"sort"
@@ -18,6 +22,9 @@ import (
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
 	"go.abhg.dev/goldmark/frontmatter"
+	"golang.org/x/image/font"
+	"golang.org/x/image/font/opentype"
+	"golang.org/x/image/math/fixed"
 )
 
 const (
@@ -105,10 +112,13 @@ func (p Post) DateRFC3339() string {
 	return p.Date.Format(time.RFC3339)
 }
 
+func (p Post) SocialImage() string {
+	return "social-" + p.Slug + ".png"
+}
+
 type IndexData struct {
-	Posts       []Post
-	LastUpdated string
-	GAID        string
+	Posts []Post
+	GAID  string
 }
 
 type PostData struct {
@@ -129,6 +139,15 @@ func main() {
 	sort.Slice(posts, func(i, j int) bool {
 		return posts[i].Date.After(posts[j].Date)
 	})
+
+	if err := generateSocialImage("social-index.png", "Özgür Tanrıverdi", "Software engineer in Istanbul."); err != nil {
+		panic(err)
+	}
+	for _, post := range posts {
+		if err := generateSocialImage(post.SocialImage(), post.Title, "Özgür Tanrıverdi / "+post.DateString()); err != nil {
+			panic(err)
+		}
+	}
 
 	if err := generatePostPages(posts); err != nil {
 		panic(err)
@@ -319,17 +338,7 @@ func generateSitemap(posts []Post) error {
 	}
 	defer f.Close()
 
-	var lastUpdated string
-	if len(posts) > 0 {
-		lastUpdated = posts[0].DateISO()
-	} else {
-		lastUpdated = time.Now().Format(dateLayout)
-	}
-
-	if err := sitemapTmpl.ExecuteTemplate(f, "sitemap.xml", IndexData{
-		Posts:       posts,
-		LastUpdated: lastUpdated,
-	}); err != nil {
+	if err := sitemapTmpl.ExecuteTemplate(f, "sitemap.xml", IndexData{Posts: posts}); err != nil {
 		return fmt.Errorf("render sitemap: %w", err)
 	}
 	return nil
@@ -356,4 +365,101 @@ func copyStaticFiles(srcDir, dstDir string) error {
 		}
 	}
 	return nil
+}
+
+// Social images are separate from article illustrations, which may be too small
+// or the wrong aspect ratio for link previews. Keep text inside crop-safe margins.
+func generateSocialImage(filename, title, subtitle string) error {
+	data, err := os.ReadFile("static/ibm-plex-mono-regular.ttf")
+	if err != nil {
+		return err
+	}
+	typeface, err := opentype.Parse(data)
+	if err != nil {
+		return err
+	}
+
+	canvas := image.NewRGBA(image.Rect(0, 0, 1200, 630))
+	draw.Draw(canvas, canvas.Bounds(), image.NewUniform(color.RGBA{0x1c, 0x1b, 0x19, 0xff}), image.Point{}, draw.Src)
+	ink := image.NewUniform(color.RGBA{0xe8, 0xe3, 0xda, 0xff})
+	sand := image.NewUniform(color.RGBA{0xc7, 0xb5, 0x8d, 0xff})
+	muted := image.NewUniform(color.RGBA{0xa6, 0xa0, 0x96, 0xff})
+
+	// Wrap at words and reduce the size for longer titles rather than cropping them.
+	var titleFace font.Face
+	var lines []string
+	var lineHeight int
+	for size := 56.0; size >= 20; size -= 2 {
+		face, err := opentype.NewFace(typeface, &opentype.FaceOptions{Size: size, DPI: 72})
+		if err != nil {
+			return err
+		}
+		lines = nil
+		line := ""
+		fits := true
+		for _, word := range strings.Fields(title) {
+			if font.MeasureString(face, word).Ceil() > 1040 {
+				fits = false
+				break
+			}
+			candidate := strings.TrimSpace(line + " " + word)
+			if font.MeasureString(face, candidate).Ceil() > 1040 {
+				lines = append(lines, line)
+				line = word
+			} else {
+				line = candidate
+			}
+		}
+		lines = append(lines, line)
+		if fits && len(lines) <= 3 {
+			titleFace = face
+			lineHeight = int(size * 1.3)
+			break
+		}
+		face.Close()
+	}
+	if titleFace == nil {
+		return fmt.Errorf("title is too long for social image: %s", title)
+	}
+	defer titleFace.Close()
+	// Balance two-line titles so a final word does not sit alone.
+	if len(lines) == 2 {
+		words := strings.Fields(title)
+		bestWidth := 1041
+		for i := 1; i < len(words); i++ {
+			left, right := strings.Join(words[:i], " "), strings.Join(words[i:], " ")
+			width := max(font.MeasureString(titleFace, left).Ceil(), font.MeasureString(titleFace, right).Ceil())
+			if width < bestWidth {
+				lines = []string{left, right}
+				bestWidth = width
+			}
+		}
+	}
+	labelFace, err := opentype.NewFace(typeface, &opentype.FaceOptions{Size: 26, DPI: 72})
+	if err != nil {
+		return err
+	}
+	defer labelFace.Close()
+	drawer := font.Drawer{Dst: canvas, Src: sand, Face: labelFace, Dot: fixed.P(80, 100)}
+	drawer.DrawString("otrv.dev")
+	drawer.Face = titleFace
+	drawer.Src = ink
+	for i, line := range lines {
+		drawer.Dot = fixed.P(80, 330-(len(lines)-1)*lineHeight/2+i*lineHeight)
+		drawer.DrawString(line)
+	}
+	drawer.Face = labelFace
+	drawer.Src = muted
+	drawer.Dot = fixed.P(80, 530)
+	drawer.DrawString(subtitle)
+
+	f, err := os.Create(filepath.Join("public", filename))
+	if err != nil {
+		return err
+	}
+	if err := png.Encode(f, canvas); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
 }

@@ -1,7 +1,7 @@
 ---
 title: Do we really need the extra state?
 date: 2026-03-17
-description: Structural exploration of the idea of State Reduction.
+description: How reducing software state limits complexity, makes invalid states harder to represent, and helps keep programs easier to test and maintain.
 cover: state-reduction.png
 ---
 

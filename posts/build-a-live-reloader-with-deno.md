@@ -1,7 +1,7 @@
 ---
 title: Build a live reloader with Deno
 date: 2020-10-28
-description: A short introduction to Deno by building a live reloader similar to Nodemon and Watchman. By going through this tutorial you will explore all principles of Deno.
+description: Learn Deno's file watching, subprocess, and permissions APIs by building a TypeScript live reloader. A tutorial originally written for Deno 1.0.
 cover: deno.webp
 ---
 
@@ -15,11 +15,11 @@ This is a small tutorial to build a bare bones live reloader like **nodemon** an
 
 _The source code for this project is available on [Github](https://github.com/otrv/denor)._
 
-# Getting Started With Deno
+## Getting Started With Deno
 
 Head over to the [manual](https://deno.land/manual/getting_started) to find out how to install **Deno** on your system and setup your development environment. Only suggestion I have about this is if you are using **vscode** and you installed the `deno-vscode` extension, you should change your global `settings.json` and add the `"deno.enable": false` option which is normally enabled by default. If you don't, all your JS/TS projects will be treated as a Deno project and you will need to turn that option off in every single NodeJS project. Because of this, you have to create a `.vscode` folder in each of your **Deno** projects and override that setting.
 
-# Project Setup
+## Project Setup
 
 Let's create the project directory and if you are using **vscode**, a `.vscode` directory inside it. We need a `settings.json` file inside this directory to set project based settings. We have to flag the project as a **Deno** project to enable the extension features because we have disabled them in the previous section.
 
@@ -31,7 +31,7 @@ Let's create the project directory and if you are using **vscode**, a `.vscode` 
 
 Deno supports both JavaScript and TypeScript as first class languages at runtime. Thanks to this, we will use TypeScript in this project with zero configuration. Our source code will be placed inside the `src` folder and as per convention, the entry point for our CLI tool will be placed inside the root directory. So create the `src` directory and the entry point file inside the root directory. For purposes of this tutorial, we are going to call it `denor.ts`. Later when we install the app with the `deno install` command, the name of the cli tool will be the same as the name of this file.
 
-# Runtime API
+## Runtime API
 
 First thing we need is a watcher to watch for file changes on our project directory. For this, we are going to use the runtime API. Deno tries to be as web compatible as possible, so it tries to use the existing web standards rather then creating new APIs. For everything that does not have a web standard, **Deno** has a global `Deno` namespace.
 
@@ -53,7 +53,7 @@ Let's explain what's going on here;
 
 Our function takes a path to watch and a function to call on every file change. We create a watcher using the [Deno.watchFs()](https://doc.deno.land/https/github.com/denoland/deno/releases/latest/download/lib.deno.d.ts#Deno.watchFs) function of the Runtime API. The returned watcher is an `AsyncIterableIterator` that we can await for and iterate on every file change event inside the provided path. The watcher will keep watching on the directory until the `promise` rejects or stopped manually, otherwise it will never resolve and wait. We check if the `event` is of the kind `"modify"` and call our `onChange()` function if it is. Notice how we call our function synchronously without caring if it's asynchronous or not. The `Function` type accepts `async function` but we have to call it synchronously to not block the watcher. This is because our watcher is a for loop, which will not switch to a new event before the execution of the first event ends. This is not the behavior we want.
 
-# Secure by Default
+## Secure by Default
 
 Deno is built to be secure by default so it will not have access to security sensitive areas unless the user specifically enables it with a command line flag. You can learn more about this [here](https://deno.land/manual/getting_started/permissions).
 
@@ -103,7 +103,7 @@ export async function watchChanges(
 
 We will wait for a small interval and block the watcher with a `reloading` variable. This variable will be configurable with the `config.interval` parameter and is `500ms` by default. So, the watcher will have to wait half a second to detect additional changes. Now, when you restart the app, you will notice the `console.log` will be called a single time for every change.
 
-# Spawning a Subprocess
+## Spawning a Subprocess
 
 Now that our watcher is ready, we also need a runner to restart our process on every file change. For ease of use, we will take inspiration from **denon** and build our reloader to be a wrapper around the `deno` command. This means running `denor run` instead of `deno run` will have the same outcome with live reloading enabled.
 
@@ -189,7 +189,7 @@ export function runAndWatchErrors(
 
 Now we are ready to tie everything together.
 
-# Building Our CLI App
+## Building Our CLI App
 
 Let's modify the `main()` function inside the `denor.ts` file to use our `runner` inside the `watcher`;
 
@@ -242,7 +242,7 @@ setTimeout(() => {
 
 We can test our reloader using this command: `deno run --allow-read --allow-run denor.ts run test.ts`. We need the `--allow-run` flag since we need to spawn a subprocess. When our reloader is installed on our system, this command will be replaced with `denor run test.ts` which is more intuitive. Try to make some changes on `test.ts` and see if the process reloads. If you reload the app before it throws the error, wait for sometime to see if the error is thrown for a single time. If you see multiple errors, there probably is an error in your code and our reloader does not close the process properly. If everything is running smoothly and your app is reloading correctly, good job! We made it! Now it's time to make it more beautiful and explore more features of **Deno** in the process.
 
-# Using the Standard Library and Third-Party Libraries
+## Using the Standard Library and Third-Party Libraries
 
 We will be using the standard library to add some color to our terminal output and with this, we will explore how to import external code to our **Deno** apps. Importing third-party libraries works the exact same way so the information carries over. Very much like a browser, **Deno** imports external code with URLs and it caches remote imports in a special directory specified by the `$DENO_DIR` environment variable. This means, no more `node_modules` and `package.json`. You can read more about how this works [here](https://deno.land/manual/linking_to_external_code).
 
@@ -344,7 +344,7 @@ async function main() {
 main();
 ```
 
-# Deno Tooling
+## Deno Tooling
 
 Like **Go**, **Deno** provides some built in tooling that will be useful when developing your applications. In my opinion, this is an huge improvement over **NodeJS** because it eases the JavaScript fatigue by setting a standard on these tools and also removing the configuration step which is a huge (but admittedly fun) pain. You can find a list of all the tools available [here](https://deno.land/manual/tools). We can explore some of them in our project.
 
