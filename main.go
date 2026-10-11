@@ -12,6 +12,7 @@ import (
 	texttemplate "text/template"
 	"time"
 
+	"github.com/alecthomas/chroma/v2"
 	"github.com/yuin/goldmark"
 	highlighting "github.com/yuin/goldmark-highlighting/v2"
 	"github.com/yuin/goldmark/parser"
@@ -30,7 +31,14 @@ var (
 	md = goldmark.New(
 		goldmark.WithExtensions(
 			highlighting.NewHighlighting(
-				highlighting.WithStyle("vim"),
+				highlighting.WithCustomStyle(chroma.MustNewStyle("charcoal", chroma.StyleEntries{
+					chroma.Background:    "bg:#242320 #e8e3da",
+					chroma.Comment:       "#a6a096",
+					chroma.Keyword:       "#c7b58d",
+					chroma.NameBuiltin:   "#c3b5d5",
+					chroma.LiteralString: "#b7c9a8",
+					chroma.LiteralNumber: "#d6b2a2",
+				})),
 			),
 			&frontmatter.Extender{},
 		),
