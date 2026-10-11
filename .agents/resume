@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# The installed Go toolchain and caches survive pause/resume.
+# This static site has no services or authentication to reconnect.

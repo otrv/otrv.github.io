@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+TIMEFORMAT='  completed in %3R seconds'
+
+echo 'Checking system packages'
+time {
+  missing=()
+  for package in ca-certificates curl jq tar gzip; do
+    if [[ "$(dpkg-query -W -f='${Status}' "$package" 2>/dev/null || true)" != 'install ok installed' ]]; then
+      missing+=("$package")
+    fi
+  done
+  if ((${#missing[@]})); then
+    sudo apt-get update
+    sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y "${missing[@]}"
+  fi
+}
+
+# Keep the toolchain aligned with go.mod rather than maintaining another pin.
+version="$(awk '$1 == "go" { print $2; exit }' go.mod)"
+go_root="/usr/local/lib/go-$version"
+echo "Preparing Go $version"
+time {
+  if [[ ! -x "$go_root/bin/go" ]] || [[ "$(GOTOOLCHAIN=local "$go_root/bin/go" version)" != "go version go$version "* ]]; then
+    case "$(uname -m)" in
+      x86_64) arch=amd64 ;;
+      aarch64) arch=arm64 ;;
+      *) echo 'Unsupported Go architecture' >&2; exit 1 ;;
+    esac
+    archive="go$version.linux-$arch.tar.gz"
+    temp_dir="$(mktemp -d)"
+    trap 'rm -rf "$temp_dir"' EXIT
+    checksum="$(curl -fsSL --retry 3 'https://go.dev/dl/?mode=json&include=all' |
+      jq -er --arg file "$archive" '.[] | .files[] | select(.filename == $file) | .sha256')"
+    curl -fsSL --retry 3 "https://go.dev/dl/$archive" -o "$temp_dir/$archive"
+    echo "$checksum  $temp_dir/$archive" | sha256sum --check
+    tar -xzf "$temp_dir/$archive" -C "$temp_dir"
+    sudo mkdir -p "$go_root"
+    sudo cp -a "$temp_dir/go/." "$go_root/"
+  fi
+  # /usr/local/bin is available to agents and services without profile changes.
+  sudo ln -sfn "$go_root/bin/go" /usr/local/bin/go
+  sudo ln -sfn "$go_root/bin/gofmt" /usr/local/bin/gofmt
+  export PATH="/usr/local/bin:$PATH"
+  go version
+}
+
+echo 'Downloading Go modules from go.mod and go.sum'
+time go mod download
+
+echo 'Building the site and warming the Go build cache'
+time go run -mod=readonly main.go

@@ -12,3 +12,6 @@ public/
 
 # OS
 .DS_Store
+
+# Orb portal metadata
+.amp/portals/*

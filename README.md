@@ -24,6 +24,16 @@ go run main.go
 
 Output goes to `public/`.
 
+## Amp orbs
+
+`.agents/setup` installs the Go version from `go.mod` and downloads the modules
+listed in `go.mod` and `go.sum`. It builds the site to warm the build cache.
+Amp snapshots the installed toolchain and caches for later orbs.
+
+Run `.agents/setup` again after changing dependencies. Repeated runs reuse the
+installed toolchain and caches. `.agents/resume` does no work because the site
+needs no services or authentication.
+
 ## Deploying
 
 Push to main. GitHub Actions handles the rest.
