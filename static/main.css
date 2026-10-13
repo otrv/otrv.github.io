@@ -107,6 +107,12 @@ h1, h2, h3, h4 {
   text-wrap: balance;
 }
 
+h1, h2, h3, h4, h5, h6,
+.post-list a,
+.author-footer p:first-child {
+  text-transform: lowercase;
+}
+
 h1 {
   font-size: 1.875rem;
   letter-spacing: -0.04em;
