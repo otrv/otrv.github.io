@@ -1,8 +1,8 @@
 # AGENTS.md
 
-These rules apply to any language and any framework. Where a repository has its own `AGENTS.md`, its rules win. Where it has established conventions, follow them. Each rule has its reason after it, so you can apply the rule with judgment when a case does not fit.
+These rules apply to any language and any framework. Where a repository has its own `AGENTS.md`, its rules win. Where it has established conventions, follow them. Most rules give their reason, so you can apply them with judgment when a case does not fit.
 
-The sections follow the order of the work. Design comes first, then the code, then verification, enforcement, and the way you work.
+The first three sections set the frame. The rest follow the order of the work: design, code, testing, enforcement, and the way you work.
 
 ## Write idiomatic code
 
@@ -15,8 +15,9 @@ Safety means the program does the right thing or stops. Performance comes second
 ## Choose simple over easy
 
 - Simple means not interleaved: one role, one concept, one dimension. Easy means familiar or close at hand. Choose simple when the two disagree. Easy and tangled code is cheap to write and expensive to keep.
-- Separate essential complexity from accidental complexity. Essential complexity is what the user's problem requires. Everything else, such as state the problem does not need, control flow imposed by a framework, and layers that only forward calls, is accidental. Remove it.
+- Separate essential complexity from accidental complexity. Essential complexity is what the user's problem requires. Everything else, such as state the problem does not need and layers that only forward calls, is accidental. Remove it.
 - Complexity shows up in three ways: one change needs edits in many places, a reader has to hold too much in their head, or a reader cannot tell what they need to know. Treat each one as a defect.
+- Design it twice. The first idea is rarely the simplest. Before you add a module, an interface, or a data layout, sketch two designs that differ in structure, not only in names. Compare them and pick the simpler one.
 - Expect simplicity to come from the last revision, not the first draft. Be ready to throw a draft away.
 
 ## Design the data first
@@ -38,7 +39,8 @@ Safety means the program does the right thing or stops. Performance comes second
 ## Draw module boundaries around decisions, not steps
 
 - Give each module one design decision that is likely to change, such as a file format, an algorithm, or a storage choice, and hide it. Do not split modules by the steps of a flowchart. A change to one decision then edits one module.
-- Make modules deep, with a small interface over a lot of behavior. A module whose interface is as complex as its implementation costs more than it saves.
+- Make modules deep, with a small interface over a lot of behavior. A module whose interface is as complex as its implementation costs more than it saves. Deep does not mean one entry point. If a high-level function is built from lower-level functions that callers can use on their own, keep those public, so a caller who needs more control can step down one level instead of rewriting.
+- Design an interface for the requirements you know, including the ones that come later, and implement only what is needed now. Callers keep working when the implementation improves. Do not add parameters for requirements you are guessing at.
 - Never hide cost or lifetime. If a call allocates, blocks, does I/O, takes a lock, or keeps a reference to its argument, its name or its signature says so. Hidden costs come back as slow code and as code that does not compose.
 - Draw boundaries around systems that transform data, not around nouns in the domain. Do not build inheritance hierarchies that model the real world, such as `Animal` and `Dog`. Group code by the work it does on a set of data.
 - Pull complexity down into the module. One author handling a hard case once is cheaper than every caller handling it.
@@ -57,16 +59,15 @@ Safety means the program does the right thing or stops. Performance comes second
 - Centralize control flow in the parent function. Move conditions up to the caller and loops down into the callee. The parent holds the state, helpers compute changes, and leaf functions are pure.
 - Keep one source of truth for each fact. Derive everything else from it. Do not copy or alias state, because copies go stale.
 - Declare each variable in the smallest scope that works. Check a value close to where you use it.
-- Let the framework own its parts, such as routes, models, and components. Keep decisions in pure functions on plain data, and call them from the framework code.
+- Let the framework own its parts, such as routes, models, and components. Call the pure functions from that framework code.
 - Use simple, explicit control flow. Use recursion only when the depth has a proven bound. Tail recursion that the language guarantees to optimize counts as a loop, and a loop needs a limit.
-- Do not react to external events one at a time. Queue them and process them in batches at a pace you control. This keeps control flow and the amount of work bounded.
 
 ## Assert invariants and handle every error
 
 - Separate programmer errors from operating errors. A programmer error is a broken invariant. Assert it and crash, because continuing on corrupt state spreads the damage. An operating error is a network failure, a full disk, or bad input. Handle it, and test the code that handles it.
-- Assert preconditions, postconditions, and invariants. Assert what must not happen as well as what must. Write `assert(a); assert(b);`, not `assert(a and b);`, so a failure names the exact condition.
+- Assert preconditions, postconditions, and invariants. Assert what must not happen as well as what must. Write `assert(a); assert(b);`, not `assert(a and b)`, so a failure names the exact condition.
 - Validate external input once, at the boundary: the CLI, configuration, the network, and external APIs. Inside the boundary, trust the types.
-- Handle every error that remains after the API design. Do not ignore a return value or catch an exception and continue as if nothing happened.
+- Handle every error that the API design cannot remove. Do not ignore a return value or catch an exception and continue as if nothing happened.
 
 ## Name things precisely
 
@@ -75,18 +76,20 @@ Safety means the program does the right thing or stops. Performance comes second
 
 ## Write no comments
 
-Code comments are banned, and that includes doc comments. A comment is prose that no tool checks, so it drifts from the code and nothing fails when it does.
+Code comments are banned, and that includes doc comments. The ban holds even in a repository whose convention is to write comments. A comment is prose that no tool checks, so it drifts from the code and nothing fails when it does.
 
-- Put each piece of information where a tool checks it. What the code does goes in names. An assumption goes in an assertion. Expected behavior goes in a test. A constraint goes in a type. The reason for a change goes in the commit message and the PR description.
+- Put each piece of information where a tool checks it. What the code does goes in names. An assumption goes in an assertion. Expected behavior goes in a test. A constraint goes in a type. The reason for a change goes in a short commit message.
 - When you want to write a comment, change the code until you no longer need one. Rename the variable, extract a function with a real name, or add an assertion.
-- In code you change, delete the existing comments. Move any fact they hold into a name, an assertion, a test, or the commit message first.
+- In code you change, delete the existing comments. Move any fact they hold into a name, an assertion, or a test first.
 - Text that a tool reads is not a comment. Shebangs, compiler and linter directives, build tags, and license headers that a license requires are allowed. So are doc comments that a tool runs or checks, such as Rust doctests, and doc comments that the repository's linter requires.
 
 ## Treat each dependency as a cost
 
 A dependency adds code you did not review, upgrades you did not plan, and an attack path you do not control. Add one only when it saves more than that. Prefer the standard library and a small set of well-known tools.
 
-## Make tests deterministic
+Wrap a dependency when it is a decision that is likely to change, such as a platform, a storage engine, a vendor API, or a networking library. The wrapper exposes only what the program uses, in the program's own terms. Do not wrap the standard library or a framework that owns the program's structure.
+
+## Test behavior and make every failure replayable
 
 - Inject time, randomness, and I/O so that any failure can be replayed from a seed.
 - Test what callers can observe, not internal structure. A test that breaks when only the internals change gives no information.
@@ -99,19 +102,19 @@ A dependency adds code you did not review, upgrades you did not plan, and an att
 Each rule is only as strong as what enforces it. In descending priority:
 
 1. **The codebase.** Make the mistake impossible. Give each piece of state one owner, give each task one supported way, and use types that cannot hold an illegal state.
-2. **Static analysis.** If bad code still compiles, add a lint or CI check. Its error message names the function, type, or file to use instead. A lint that rejects comments enforces the comment ban.
+2. **Static analysis.** If bad code still compiles, add a lint or CI check. Its error message names the function, type, or file to use instead.
 3. **Prose.** Write a rule in documentation or in this file only when it needs judgment. Nothing fails when an agent skips it.
-4. **Human review.** This is the last line, and it is the least reliable one.
+4. **Human review.** A reviewer catches what the other three miss, but a reviewer also misses things. This level is the least reliable.
 
-When the same mistake happens twice, move its rule one level up. Prove the new check fails on the real past mistake. Delete the prose rule when a check replaces it.
+When the user corrects the same mistake twice, propose a check one level up. Build it when the user agrees, and prove that it fails on the real past mistake. Delete the prose rule when a check replaces it.
 
 ## Work in small, verified steps
 
 1. Read before you write: the code you will change, its callers, and its tests.
 2. Restate the goal if the request is unclear. Ask the user only about decisions that are theirs to make. Look up facts yourself.
-3. Make the smallest change that solves the problem.
+3. Make the smallest change that leaves the design as if the requirement had been there from the start. If the design no longer fits, fix the design first.
 4. Fix the root cause. Trace the symptom back to the first place the program went wrong. A guard is a fix only when the state it handles is legitimate.
 5. When you replace an internal API, migrate every caller and delete the old API in the same change. Do not leave a compatibility layer.
 6. Verify against the real program. Run it and read the output. "It compiles" and "the tests pass" are not proof that the feature works.
 7. Ask before you do anything that is hard to reverse or visible to others: deleting data, rewriting history, publishing, or sending messages.
-8. Report what you ran, what failed, and what you skipped. State the reason for each decision in the commit message.
+8. Report what you ran, what failed, and what you skipped.
