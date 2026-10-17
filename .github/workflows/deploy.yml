@@ -25,7 +25,7 @@ jobs:
           go-version: '1.23'
 
       - name: Build site
-        run: go run main.go
+        run: go run -mod=readonly .
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

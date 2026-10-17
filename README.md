@@ -19,7 +19,7 @@ Content goes here.
 ## Building locally
 
 ```
-go run main.go
+go run -mod=readonly .
 ```
 
 Output goes to `public/`.

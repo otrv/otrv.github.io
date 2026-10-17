@@ -18,7 +18,7 @@
     <author>
       <name>Özgür Tanrıverdi</name>
     </author>
-    <summary type="html"><![CDATA[{{.Description | cdata}}]]></summary>
+    <summary type="text">{{.Description | escape}}</summary>
     <content type="html"><![CDATA[{{.Content | cdata}}]]></content>
   </entry>
 {{end}}</feed>

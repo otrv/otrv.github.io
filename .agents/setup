@@ -18,7 +18,6 @@ time {
   fi
 }
 
-# Keep the toolchain aligned with go.mod rather than maintaining another pin.
 version="$(awk '$1 == "go" { print $2; exit }' go.mod)"
 go_root="/usr/local/lib/go-$version"
 echo "Preparing Go $version"
@@ -40,7 +39,6 @@ time {
     sudo mkdir -p "$go_root"
     sudo cp -a "$temp_dir/go/." "$go_root/"
   fi
-  # /usr/local/bin is available to agents and services without profile changes.
   sudo ln -sfn "$go_root/bin/go" /usr/local/bin/go
   sudo ln -sfn "$go_root/bin/gofmt" /usr/local/bin/gofmt
   export PATH="/usr/local/bin:$PATH"
@@ -51,4 +49,4 @@ echo 'Downloading Go modules from go.mod and go.sum'
 time go mod download
 
 echo 'Building the site and warming the Go build cache'
-time go run -mod=readonly main.go
+time go run -mod=readonly .

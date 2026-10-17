@@ -3,14 +3,15 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
-	"image"
-	"image/color"
-	"image/draw"
-	"image/png"
+	"io"
+	"io/fs"
+	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	texttemplate "text/template"
@@ -22,49 +23,20 @@ import (
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
 	"go.abhg.dev/goldmark/frontmatter"
-	"golang.org/x/image/font"
-	"golang.org/x/image/font/opentype"
-	"golang.org/x/image/math/fixed"
 )
 
 const (
-	dateLayout        = "2006-01-02"
-	dateDisplayLayout = "Jan 02, 2006"
-	siteURL           = "https://otrv.dev"
-	gaID              = "G-DZ4KVNJVCR"
-)
-
-var (
-	md = goldmark.New(
-		goldmark.WithExtensions(
-			highlighting.NewHighlighting(
-				highlighting.WithCustomStyle(chroma.MustNewStyle("charcoal", chroma.StyleEntries{
-					chroma.Background:    "bg:#242320 #e8e3da",
-					chroma.Comment:       "#a6a096",
-					chroma.Keyword:       "#c7b58d",
-					chroma.NameBuiltin:   "#c3b5d5",
-					chroma.LiteralString: "#b7c9a8",
-					chroma.LiteralNumber: "#d6b2a2",
-				})),
-			),
-			&frontmatter.Extender{},
-		),
-	)
-
-	postTmpl  = template.Must(template.ParseFiles("templates/post.gohtml"))
-	indexTmpl = template.Must(template.ParseFiles("templates/index.gohtml"))
-	feedTmpl  = texttemplate.Must(texttemplate.New("feed.xml").Funcs(texttemplate.FuncMap{
-		"escape": func(s string) string {
-			var buf bytes.Buffer
-			template.HTMLEscape(&buf, []byte(s))
-			return buf.String()
-		},
-		"cdata": func(s any) string {
-			str := fmt.Sprintf("%v", s)
-			return strings.ReplaceAll(str, "]]>", "]]]]><![CDATA[>")
-		},
-	}).ParseFiles("templates/feed.xml"))
-	sitemapTmpl = texttemplate.Must(texttemplate.ParseFiles("templates/sitemap.xml"))
+	dateLayout         = "2006-01-02"
+	dateDisplayLayout  = "Jan 02, 2006"
+	siteURL            = "https://otrv.dev"
+	gaID               = "G-DZ4KVNJVCR"
+	postCountMax       = 256
+	postBytesMax       = 1 << 20
+	postEntriesMax     = 1024
+	staticEntriesMax   = 4096
+	staticDepthMax     = 8
+	staticFileBytesMax = 16 << 20
+	staticBytesMax     = 128 << 20
 )
 
 type Post struct {
@@ -74,7 +46,6 @@ type Post struct {
 	Cover       string
 	Slug        string
 	Content     template.HTML
-	JSONLD      template.JS
 }
 
 type jsonLD struct {
@@ -116,132 +87,13 @@ func (p Post) SocialImage() string {
 	return "social-" + p.Slug + ".png"
 }
 
-type IndexData struct {
-	Posts []Post
-	GAID  string
-}
-
-type PostData struct {
-	Post
-	GAID string
-}
-
-func main() {
-	if err := os.MkdirAll("public", 0o755); err != nil {
-		panic(err)
-	}
-
-	posts, err := parsePosts("posts")
-	if err != nil {
-		panic(err)
-	}
-
-	sort.Slice(posts, func(i, j int) bool {
-		return posts[i].Date.After(posts[j].Date)
-	})
-
-	if err := generateSocialImage("social-index.png", "Özgür Tanrıverdi", "Software engineer in Istanbul."); err != nil {
-		panic(err)
-	}
-	for _, post := range posts {
-		if err := generateSocialImage(post.SocialImage(), post.Title, "Özgür Tanrıverdi / "+post.DateString()); err != nil {
-			panic(err)
-		}
-	}
-
-	if err := generatePostPages(posts); err != nil {
-		panic(err)
-	}
-
-	if err := generateIndex(posts); err != nil {
-		panic(err)
-	}
-
-	if err := generateFeed(posts); err != nil {
-		panic(err)
-	}
-
-	if err := generateSitemap(posts); err != nil {
-		panic(err)
-	}
-
-	if err := copyStaticFiles("static", "public"); err != nil {
-		panic(err)
-	}
-}
-
-func parsePosts(dir string) ([]Post, error) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, err
-	}
-
-	var posts []Post
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
-			continue
-		}
-
-		path := filepath.Join(dir, entry.Name())
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return nil, fmt.Errorf("read post %s: %w", path, err)
-		}
-
-		post, err := parsePost(entry.Name(), content)
-		if err != nil {
-			return nil, fmt.Errorf("parse post %s: %w", entry.Name(), err)
-		}
-
-		posts = append(posts, post)
-	}
-
-	return posts, nil
-}
-
-type postMeta struct {
-	Title       string `yaml:"title"`
-	Date        string `yaml:"date"`
-	Description string `yaml:"description"`
-	Cover       string `yaml:"cover"`
-}
-
-func parsePost(filename string, content []byte) (Post, error) {
-	ctx := parser.NewContext()
-	doc := md.Parser().Parse(text.NewReader(content), parser.WithContext(ctx))
-
-	d := frontmatter.Get(ctx)
-	if d == nil {
-		return Post{}, fmt.Errorf("missing front matter in %s", filename)
-	}
-
-	var meta postMeta
-	if err := d.Decode(&meta); err != nil {
-		return Post{}, fmt.Errorf("invalid front matter in %s: %w", filename, err)
-	}
-
-	if meta.Title == "" {
-		return Post{}, fmt.Errorf("missing title in %s", filename)
-	}
-
-	date, err := time.Parse(dateLayout, meta.Date)
-	if err != nil {
-		return Post{}, fmt.Errorf("invalid date %q in %s: %w", meta.Date, filename, err)
-	}
-
-	var buf bytes.Buffer
-	if err := md.Renderer().Render(&buf, content, doc); err != nil {
-		return Post{}, err
-	}
-
-	slug := strings.TrimSuffix(filename, ".md")
-
-	ld := jsonLD{
+func (p Post) JSONLD() (template.JS, error) {
+	data := jsonLD{
 		Context:       "https://schema.org",
 		Type:          "BlogPosting",
-		Headline:      meta.Title,
-		Description:   meta.Description,
-		DatePublished: date.Format(time.RFC3339),
+		Headline:      p.Title,
+		Description:   p.Description,
+		DatePublished: p.DateRFC3339(),
 		Author: jsonLDPerson{
 			Type: "Person",
 			Name: "Özgür Tanrıverdi",
@@ -253,14 +105,325 @@ func parsePost(filename string, content []byte) (Post, error) {
 		},
 		MainEntityOfPage: jsonLDPage{
 			Type: "WebPage",
-			ID:   siteURL + "/" + slug + ".html",
+			ID:   siteURL + "/" + p.Slug + ".html",
 		},
 	}
-	if meta.Cover != "" {
-		ld.Image = siteURL + "/" + meta.Cover
+	if p.Cover != "" {
+		data.Image = siteURL + "/" + p.Cover
 	}
-	jsonLDBytes, _ := json.Marshal(ld)
+	encoded, err := json.Marshal(data)
+	return template.JS(encoded), err
+}
 
+type siteData struct {
+	Posts   []Post
+	GAID    string
+	Updated string
+}
+
+type postData struct {
+	Post
+	GAID string
+}
+
+func main() {
+	if err := buildSite(); err != nil {
+		log.New(os.Stderr, "", 0).Fatal(err)
+	}
+}
+
+func buildSite() (err error) {
+	posts, err := readPosts("posts")
+	if err != nil {
+		return err
+	}
+	htmlTemplates, err := template.ParseFiles("templates/post.gohtml", "templates/index.gohtml")
+	if err != nil {
+		return fmt.Errorf("read HTML templates: %w", err)
+	}
+	xmlTemplates, err := texttemplate.New("xml").Funcs(texttemplate.FuncMap{
+		"escape": template.HTMLEscapeString,
+		"cdata": func(s template.HTML) string {
+			return strings.ReplaceAll(string(s), "]]>", "]]]]><![CDATA[>")
+		},
+	}).ParseFiles("templates/feed.xml", "templates/sitemap.xml")
+	if err != nil {
+		return fmt.Errorf("read XML templates: %w", err)
+	}
+
+	buildDir, err := os.MkdirTemp(".", ".site-build-")
+	if err != nil {
+		return fmt.Errorf("create build directory: %w", err)
+	}
+	cleanupBuild := true
+	defer func() {
+		if cleanupBuild {
+			err = errors.Join(err, os.RemoveAll(buildDir))
+		}
+	}()
+	outputDir := filepath.Join(buildDir, "public")
+	if err := copyStaticFiles("static", outputDir); err != nil {
+		return fmt.Errorf("copy static files: %w", err)
+	}
+	for _, post := range posts {
+		if post.Cover != "" {
+			info, err := os.Stat(filepath.Join(outputDir, filepath.FromSlash(post.Cover)))
+			if err != nil {
+				return fmt.Errorf("read cover for %s: %w", post.Slug, err)
+			}
+			if !info.Mode().IsRegular() {
+				return fmt.Errorf("cover for %s is not a regular file", post.Slug)
+			}
+		}
+	}
+	for _, post := range posts {
+		if err := writeOutput(filepath.Join(outputDir, post.Slug+".html"), func(w io.Writer) error {
+			return htmlTemplates.ExecuteTemplate(w, "post.gohtml", postData{Post: post, GAID: gaID})
+		}); err != nil {
+			return err
+		}
+	}
+
+	data := siteData{Posts: posts, GAID: gaID, Updated: time.Unix(0, 0).UTC().Format(time.RFC3339)}
+	if len(posts) > 0 {
+		data.Updated = posts[0].DateRFC3339()
+	}
+	if err := writeOutput(filepath.Join(outputDir, "index.html"), func(w io.Writer) error {
+		return htmlTemplates.ExecuteTemplate(w, "index.gohtml", data)
+	}); err != nil {
+		return err
+	}
+	for _, name := range []string{"feed.xml", "sitemap.xml"} {
+		if err := writeOutput(filepath.Join(outputDir, name), func(w io.Writer) error {
+			return xmlTemplates.ExecuteTemplate(w, name, data)
+		}); err != nil {
+			return err
+		}
+	}
+	if err := generateSocialImages(outputDir, posts); err != nil {
+		return err
+	}
+
+	previousDir := filepath.Join(buildDir, "previous")
+	renameErr := os.Rename("public", previousDir)
+	if renameErr != nil && !errors.Is(renameErr, fs.ErrNotExist) {
+		return fmt.Errorf("move previous site: %w", renameErr)
+	}
+	if err := os.Rename(outputDir, "public"); err != nil {
+		if renameErr == nil {
+			if restoreErr := os.Rename(previousDir, "public"); restoreErr != nil {
+				cleanupBuild = false
+				return fmt.Errorf("publish built site; previous site retained at %s: %w", previousDir, errors.Join(err, restoreErr))
+			}
+		}
+		return fmt.Errorf("publish built site: %w", err)
+	}
+	return nil
+}
+
+func readPosts(dir string) ([]Post, error) {
+	f, err := os.Open(dir)
+	if err != nil {
+		return nil, fmt.Errorf("read posts: %w", err)
+	}
+	entries, readErr := f.ReadDir(postEntriesMax + 1)
+	if errors.Is(readErr, io.EOF) {
+		readErr = nil
+	}
+	if err := errors.Join(readErr, f.Close()); err != nil {
+		return nil, fmt.Errorf("read posts: %w", err)
+	}
+	if len(entries) > postEntriesMax {
+		return nil, fmt.Errorf("posts directory exceeds %d entries", postEntriesMax)
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Name() < entries[j].Name()
+	})
+	markdown := goldmark.New(
+		goldmark.WithExtensions(
+			highlighting.NewHighlighting(
+				highlighting.WithCustomStyle(chroma.MustNewStyle("charcoal", chroma.StyleEntries{
+					chroma.Background:    "bg:#242320 #e8e3da",
+					chroma.Comment:       "#a6a096",
+					chroma.Keyword:       "#c7b58d",
+					chroma.NameBuiltin:   "#c3b5d5",
+					chroma.LiteralString: "#b7c9a8",
+					chroma.LiteralNumber: "#d6b2a2",
+				})),
+			),
+			&frontmatter.Extender{},
+		),
+	)
+	slugPattern := regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
+	var posts []Post
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+			continue
+		}
+		if !entry.Type().IsRegular() {
+			return nil, fmt.Errorf("post %s is not a regular file", entry.Name())
+		}
+		if len(posts) == postCountMax {
+			return nil, fmt.Errorf("post count exceeds %d", postCountMax)
+		}
+		slug := strings.TrimSuffix(entry.Name(), ".md")
+		if !slugPattern.MatchString(slug) {
+			return nil, fmt.Errorf("invalid post filename %q: use lowercase letters, digits, and single hyphens", entry.Name())
+		}
+		path := filepath.Join(dir, entry.Name())
+		content, err := readFileLimited(path, postBytesMax)
+		if err != nil {
+			return nil, err
+		}
+		post, err := parsePost(markdown, slug, content)
+		if err != nil {
+			return nil, fmt.Errorf("parse post %s: %w", path, err)
+		}
+		posts = append(posts, post)
+	}
+	sort.SliceStable(posts, func(i, j int) bool {
+		return posts[i].Date.After(posts[j].Date)
+	})
+	return posts, nil
+}
+
+func readFileLimited(path string, bytesMax int64) (content []byte, err error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open file %s: %w", path, err)
+	}
+	defer func() {
+		err = errors.Join(err, f.Close())
+	}()
+	content, err = io.ReadAll(io.LimitReader(f, bytesMax+1))
+	if err != nil {
+		return nil, fmt.Errorf("read file %s: %w", path, err)
+	}
+	if int64(len(content)) > bytesMax {
+		return nil, fmt.Errorf("file %s exceeds %d bytes", path, bytesMax)
+	}
+	return content, nil
+}
+
+func copyStaticFiles(srcDir, dstDir string) (err error) {
+	info, err := os.Lstat(srcDir)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("unsupported static entry %s: expected a directory", srcDir)
+	}
+	source, err := os.OpenRoot(srcDir)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		err = errors.Join(err, source.Close())
+	}()
+	if err := os.MkdirAll(dstDir, 0o755); err != nil {
+		return err
+	}
+	directories := []string{"."}
+	entriesTotal := 0
+	var bytesTotal int64
+	for i := 0; i < len(directories); i++ {
+		dir, err := source.Open(directories[i])
+		if err != nil {
+			return err
+		}
+		entries, readErr := dir.ReadDir(staticEntriesMax - entriesTotal + 1)
+		if errors.Is(readErr, io.EOF) {
+			readErr = nil
+		}
+		if err := errors.Join(readErr, dir.Close()); err != nil {
+			return err
+		}
+		entriesTotal += len(entries)
+		if entriesTotal > staticEntriesMax {
+			return fmt.Errorf("static tree exceeds %d entries", staticEntriesMax)
+		}
+		for _, entry := range entries {
+			path := filepath.Join(directories[i], entry.Name())
+			if entry.IsDir() {
+				if strings.Count(path, string(filepath.Separator))+1 > staticDepthMax {
+					return fmt.Errorf("static directory %s exceeds %d nested directory levels", path, staticDepthMax)
+				}
+				if err := os.Mkdir(filepath.Join(dstDir, path), 0o755); err != nil {
+					return err
+				}
+				directories = append(directories, path)
+				continue
+			}
+			if !entry.Type().IsRegular() {
+				return fmt.Errorf("unsupported static entry %s: expected a regular file or directory", path)
+			}
+			var copied int64
+			limit := min(int64(staticFileBytesMax), staticBytesMax-bytesTotal)
+			if err := writeOutput(filepath.Join(dstDir, path), func(w io.Writer) (err error) {
+				f, err := source.Open(path)
+				if err != nil {
+					return err
+				}
+				defer func() {
+					err = errors.Join(err, f.Close())
+				}()
+				info, err := f.Stat()
+				if err != nil {
+					return err
+				}
+				if !info.Mode().IsRegular() {
+					return fmt.Errorf("unsupported static entry %s: expected a regular file", path)
+				}
+				copied, err = io.Copy(w, io.LimitReader(f, limit+1))
+				if err != nil {
+					return err
+				}
+				if copied > limit {
+					return fmt.Errorf("static file %s exceeds %d available bytes (file limit %d, tree limit %d)", path, limit, staticFileBytesMax, staticBytesMax)
+				}
+				return nil
+			}); err != nil {
+				return err
+			}
+			bytesTotal += copied
+		}
+	}
+	return nil
+}
+
+type postMeta struct {
+	Title       string `yaml:"title"`
+	Date        string `yaml:"date"`
+	Description string `yaml:"description"`
+	Cover       string `yaml:"cover"`
+}
+
+func parsePost(markdown goldmark.Markdown, slug string, content []byte) (Post, error) {
+	ctx := parser.NewContext()
+	doc := markdown.Parser().Parse(text.NewReader(content), parser.WithContext(ctx))
+	metadata := frontmatter.Get(ctx)
+	if metadata == nil {
+		return Post{}, errors.New("missing front matter")
+	}
+	var meta postMeta
+	if err := metadata.Decode(&meta); err != nil {
+		return Post{}, fmt.Errorf("invalid front matter: %w", err)
+	}
+	meta.Title = strings.TrimSpace(meta.Title)
+	if meta.Title == "" {
+		return Post{}, errors.New("missing title")
+	}
+	date, err := time.Parse(dateLayout, meta.Date)
+	if err != nil {
+		return Post{}, fmt.Errorf("invalid date %q: %w", meta.Date, err)
+	}
+	if meta.Cover != "" && (!fs.ValidPath(meta.Cover) || strings.ContainsAny(meta.Cover, `\?#%`)) {
+		return Post{}, fmt.Errorf("invalid cover path %q: use a relative path within static", meta.Cover)
+	}
+	var buf bytes.Buffer
+	if err := markdown.Renderer().Render(&buf, content, doc); err != nil {
+		return Post{}, fmt.Errorf("render Markdown: %w", err)
+	}
 	return Post{
 		Title:       meta.Title,
 		Date:        date,
@@ -268,198 +431,16 @@ func parsePost(filename string, content []byte) (Post, error) {
 		Cover:       meta.Cover,
 		Slug:        slug,
 		Content:     template.HTML(buf.String()),
-		JSONLD:      template.JS(jsonLDBytes),
 	}, nil
 }
 
-func generatePostPages(posts []Post) error {
-	for _, post := range posts {
-		path := filepath.Join("public", post.Slug+".html")
-		f, err := os.Create(path)
-		if err != nil {
-			return fmt.Errorf("create post page %s: %w", path, err)
-		}
-
-		if err := postTmpl.Execute(f, PostData{Post: post, GAID: gaID}); err != nil {
-			f.Close()
-			return fmt.Errorf("render post %s: %w", post.Slug, err)
-		}
-		f.Close()
-	}
-
-	return nil
-}
-
-func generateIndex(posts []Post) error {
-	f, err := os.Create("public/index.html")
+func writeOutput(path string, render func(io.Writer) error) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
-		return fmt.Errorf("create index: %w", err)
+		return fmt.Errorf("create output %s: %w", path, err)
 	}
-	defer f.Close()
-
-	if err := indexTmpl.Execute(f, IndexData{Posts: posts, GAID: gaID}); err != nil {
-		return fmt.Errorf("render index: %w", err)
+	if err := errors.Join(render(f), f.Close()); err != nil {
+		return fmt.Errorf("write output %s: %w", path, err)
 	}
 	return nil
-}
-
-type FeedData struct {
-	Updated string
-	Posts   []Post
-}
-
-func generateFeed(posts []Post) error {
-	f, err := os.Create("public/feed.xml")
-	if err != nil {
-		return fmt.Errorf("create feed: %w", err)
-	}
-	defer f.Close()
-
-	var updated time.Time
-	if len(posts) > 0 {
-		updated = posts[0].Date
-	} else {
-		updated = time.Now()
-	}
-
-	if err := feedTmpl.ExecuteTemplate(f, "feed.xml", FeedData{
-		Updated: updated.Format(time.RFC3339),
-		Posts:   posts,
-	}); err != nil {
-		return fmt.Errorf("render feed: %w", err)
-	}
-	return nil
-}
-
-func generateSitemap(posts []Post) error {
-	f, err := os.Create("public/sitemap.xml")
-	if err != nil {
-		return fmt.Errorf("create sitemap: %w", err)
-	}
-	defer f.Close()
-
-	if err := sitemapTmpl.ExecuteTemplate(f, "sitemap.xml", IndexData{Posts: posts}); err != nil {
-		return fmt.Errorf("render sitemap: %w", err)
-	}
-	return nil
-}
-
-func copyStaticFiles(srcDir, dstDir string) error {
-	entries, err := os.ReadDir(srcDir)
-	if err != nil {
-		return fmt.Errorf("read static dir %s: %w", srcDir, err)
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		src := filepath.Join(srcDir, entry.Name())
-		dst := filepath.Join(dstDir, entry.Name())
-		content, err := os.ReadFile(src)
-		if err != nil {
-			return fmt.Errorf("read static file %s: %w", src, err)
-		}
-		if err := os.WriteFile(dst, content, 0o644); err != nil {
-			return fmt.Errorf("write static file %s: %w", dst, err)
-		}
-	}
-	return nil
-}
-
-// Social images are separate from article illustrations, which may be too small
-// or the wrong aspect ratio for link previews. Keep text inside crop-safe margins.
-func generateSocialImage(filename, title, subtitle string) error {
-	data, err := os.ReadFile("static/ibm-plex-mono-regular.ttf")
-	if err != nil {
-		return err
-	}
-	typeface, err := opentype.Parse(data)
-	if err != nil {
-		return err
-	}
-
-	canvas := image.NewRGBA(image.Rect(0, 0, 1200, 630))
-	draw.Draw(canvas, canvas.Bounds(), image.NewUniform(color.RGBA{0x1c, 0x1b, 0x19, 0xff}), image.Point{}, draw.Src)
-	ink := image.NewUniform(color.RGBA{0xe8, 0xe3, 0xda, 0xff})
-	sand := image.NewUniform(color.RGBA{0xc7, 0xb5, 0x8d, 0xff})
-	muted := image.NewUniform(color.RGBA{0xa6, 0xa0, 0x96, 0xff})
-
-	// Wrap at words and reduce the size for longer titles rather than cropping them.
-	var titleFace font.Face
-	var lines []string
-	var lineHeight int
-	for size := 56.0; size >= 20; size -= 2 {
-		face, err := opentype.NewFace(typeface, &opentype.FaceOptions{Size: size, DPI: 72})
-		if err != nil {
-			return err
-		}
-		lines = nil
-		line := ""
-		fits := true
-		for _, word := range strings.Fields(title) {
-			if font.MeasureString(face, word).Ceil() > 1040 {
-				fits = false
-				break
-			}
-			candidate := strings.TrimSpace(line + " " + word)
-			if font.MeasureString(face, candidate).Ceil() > 1040 {
-				lines = append(lines, line)
-				line = word
-			} else {
-				line = candidate
-			}
-		}
-		lines = append(lines, line)
-		if fits && len(lines) <= 3 {
-			titleFace = face
-			lineHeight = int(size * 1.3)
-			break
-		}
-		face.Close()
-	}
-	if titleFace == nil {
-		return fmt.Errorf("title is too long for social image: %s", title)
-	}
-	defer titleFace.Close()
-	// Balance two-line titles so a final word does not sit alone.
-	if len(lines) == 2 {
-		words := strings.Fields(title)
-		bestWidth := 1041
-		for i := 1; i < len(words); i++ {
-			left, right := strings.Join(words[:i], " "), strings.Join(words[i:], " ")
-			width := max(font.MeasureString(titleFace, left).Ceil(), font.MeasureString(titleFace, right).Ceil())
-			if width < bestWidth {
-				lines = []string{left, right}
-				bestWidth = width
-			}
-		}
-	}
-	labelFace, err := opentype.NewFace(typeface, &opentype.FaceOptions{Size: 26, DPI: 72})
-	if err != nil {
-		return err
-	}
-	defer labelFace.Close()
-	drawer := font.Drawer{Dst: canvas, Src: sand, Face: labelFace, Dot: fixed.P(80, 100)}
-	drawer.DrawString("otrv.dev")
-	drawer.Face = titleFace
-	drawer.Src = ink
-	for i, line := range lines {
-		drawer.Dot = fixed.P(80, 330-(len(lines)-1)*lineHeight/2+i*lineHeight)
-		drawer.DrawString(line)
-	}
-	drawer.Face = labelFace
-	drawer.Src = muted
-	drawer.Dot = fixed.P(80, 530)
-	drawer.DrawString(subtitle)
-
-	f, err := os.Create(filepath.Join("public", filename))
-	if err != nil {
-		return err
-	}
-	if err := png.Encode(f, canvas); err != nil {
-		f.Close()
-		return err
-	}
-	return f.Close()
 }
